@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>オセロゲーム</title>
+<style>
+  body { font-family: Arial, sans-serif; text-align: center; }
+  #board { display: grid; grid-template-columns: repeat(8, 40px); grid-template-rows: repeat(8, 40px); gap: 2px; margin: 20px auto; width: 324px; }
+  .cell { width: 40px; height: 40px; background: green; position: relative; cursor: pointer; }
+  .cell.disabled { cursor: default; }
+  .disc { width: 34px; height: 34px; border-radius: 50%; position: absolute; top: 3px; left: 3px; }
+  .black { background: black; }
+  .white { background: white; border: 1px solid #000; }
+</style>
+</head>
+<body>
+<h1>オセロゲーム</h1>
+<div id="status"></div>
+<div id="board"></div>
+<button id="reset">リセット</button>
+<script>
+const SIZE = 8;
+let board = [];
+let currentPlayer = 1; // 1: black, -1: white
+
+function initBoard() {
+  board = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+  const mid = SIZE / 2;
+  board[mid-1][mid-1] = -1;
+  board[mid][mid] = -1;
+  board[mid-1][mid] = 1;
+  board[mid][mid-1] = 1;
+}
+
+function createBoard() {
+  const container = document.getElementById('board');
+  container.innerHTML = '';
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.row = r;
+      cell.dataset.col = c;
+      cell.addEventListener('click', () => handleMove(r, c));
+      container.appendChild(cell);
+    }
+  }
+}
+
+const directions = [
+  [-1, -1], [-1, 0], [-1, 1],
+  [0, -1],          [0, 1],
+  [1, -1],  [1, 0], [1, 1]
+];
+
+function validMoves(player) {
+  const moves = [];
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (board[r][c] !== 0) continue;
+      if (captures(r, c, player).length > 0) {
+        moves.push([r, c]);
+      }
+    }
+  }
+  return moves;
+}
+
+function captures(r, c, player) {
+  const caps = [];
+  for (const [dr, dc] of directions) {
+    const captured = [];
+    let nr = r + dr, nc = c + dc;
+    while (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === -player) {
+      captured.push([nr, nc]);
+      nr += dr; nc += dc;
+    }
+    if (captured.length && nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === player) {
+      caps.push(...captured);
+    }
+  }
+  return caps;
+}
+
+function handleMove(r, c) {
+  if (board[r][c] !== 0) return;
+  const flips = captures(r, c, currentPlayer);
+  if (flips.length === 0) return;
+  board[r][c] = currentPlayer;
+  for (const [fr, fc] of flips) {
+    board[fr][fc] = currentPlayer;
+  }
+  currentPlayer *= -1;
+  if (validMoves(currentPlayer).length === 0) {
+    currentPlayer *= -1;
+    if (validMoves(currentPlayer).length === 0) endGame();
+  }
+  draw();
+}
+
+function endGame() {
+  const black = board.flat().filter(v => v === 1).length;
+  const white = board.flat().filter(v => v === -1).length;
+  document.getElementById('status').textContent = `終了！ 黒: ${black} 白: ${white}`;
+  document.querySelectorAll('.cell').forEach(c => c.classList.add('disabled'));
+}
+
+function draw() {
+  const container = document.getElementById('board');
+  const moves = validMoves(currentPlayer);
+  document.getElementById('status').textContent = currentPlayer === 1 ? '黒の番です' : '白の番です';
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const cell = container.children[r * SIZE + c];
+      cell.innerHTML = '';
+      cell.classList.remove('disabled');
+      if (board[r][c] === 1) {
+        const disc = document.createElement('div');
+        disc.className = 'disc black';
+        cell.appendChild(disc);
+      } else if (board[r][c] === -1) {
+        const disc = document.createElement('div');
+        disc.className = 'disc white';
+        cell.appendChild(disc);
+      }
+      const move = moves.some(m => m[0] === r && m[1] === c);
+      cell.style.boxShadow = move ? '0 0 0 2px yellow inset' : 'none';
+      if (!move && board[r][c] === 0) cell.classList.add('disabled');
+    }
+  }
+}
+
+function reset() {
+  currentPlayer = 1;
+  initBoard();
+  createBoard();
+  draw();
+}
+
+document.getElementById('reset').addEventListener('click', reset);
+initBoard();
+createBoard();
+draw();
+</script>
+</body>
+</html>
