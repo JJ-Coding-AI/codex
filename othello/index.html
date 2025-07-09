@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>オセロゲーム</title>
+<style>
+  body { font-family: Arial, sans-serif; text-align: center; }
+  #board { display: grid; grid-template-columns: repeat(8, 40px); grid-template-rows: repeat(8, 40px); gap: 2px; margin: 20px auto; width: 324px; }
+  .cell { width: 40px; height: 40px; background: green; position: relative; cursor: pointer; }
+  .cell.disabled { cursor: default; }
+  .disc { width: 34px; height: 34px; border-radius: 50%; position: absolute; top: 3px; left: 3px; }
+  .black { background: black; }
+  .white { background: white; border: 1px solid #000; }
+</style>
+</head>
+<body>
+<h1>オセロゲーム</h1>
+<div id="status"></div>
+<div id="board"></div>
+<button id="reset">リセット</button>
+<button id="play-ai">コンピューターと対戦</button>
+<button id="watch-ai">AI同士観戦</button>
+<script>
+const SIZE = 8;
+let board = [];
+let currentPlayer = 1; // 1: black, -1: white
+let mode = 'human'; // game mode
+let statusMessage = '';
+const weights = [
+  [120,-20,20,5,5,20,-20,120],
+  [-20,-40,-5,-5,-5,-5,-40,-20],
+  [20,-5,15,3,3,15,-5,20],
+  [5,-5,3,3,3,3,-5,5],
+  [5,-5,3,3,3,3,-5,5],
+  [20,-5,15,3,3,15,-5,20],
+  [-20,-40,-5,-5,-5,-5,-40,-20],
+  [120,-20,20,5,5,20,-20,120],
+];
+
+function initBoard() {
+  board = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+  const mid = SIZE / 2;
+  board[mid-1][mid-1] = -1;
+  board[mid][mid] = -1;
+  board[mid-1][mid] = 1;
+  board[mid][mid-1] = 1;
+}
+
+function createBoard() {
+  const container = document.getElementById('board');
+  container.innerHTML = '';
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.row = r;
+      cell.dataset.col = c;
+      cell.addEventListener('click', () => handleMove(r, c));
+      container.appendChild(cell);
+    }
+  }
+}
+
+const directions = [
+  [-1, -1], [-1, 0], [-1, 1],
+  [0, -1],          [0, 1],
+  [1, -1],  [1, 0], [1, 1]
+];
+
+function cloneBoard(b) {
+  return b.map(row => row.slice());
+}
+
+function capturesOn(b, r, c, player) {
+  const caps = [];
+  for (const [dr, dc] of directions) {
+    const captured = [];
+    let nr = r + dr, nc = c + dc;
+    while (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && b[nr][nc] === -player) {
+      captured.push([nr, nc]);
+      nr += dr; nc += dc;
+    }
+    if (captured.length && nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && b[nr][nc] === player) {
+      caps.push(...captured);
+    }
+  }
+  return caps;
+}
+
+function validMovesOn(b, player) {
+  const moves = [];
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (b[r][c] !== 0) continue;
+      if (capturesOn(b, r, c, player).length) moves.push([r, c]);
+    }
+  }
+  return moves;
+}
+
+function applyMove(b, r, c, player) {
+  const nb = cloneBoard(b);
+  const flips = capturesOn(nb, r, c, player);
+  nb[r][c] = player;
+  for (const [fr, fc] of flips) nb[fr][fc] = player;
+  return nb;
+}
+
+function evaluate(b, player) {
+  let score = 0;
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      score += b[r][c] * weights[r][c];
+    }
+  }
+  return score * player;
+}
+
+function minimax(b, depth, player, alpha, beta) {
+  const moves = validMovesOn(b, player);
+  if (depth === 0 || moves.length === 0) {
+    return evaluate(b, currentPlayer);
+  }
+  let value = -Infinity;
+  for (const [r, c] of moves) {
+    const nb = applyMove(b, r, c, player);
+    const score = -minimax(nb, depth - 1, -player, -beta, -alpha);
+    if (score > value) value = score;
+    if (value > alpha) alpha = value;
+    if (alpha >= beta) break;
+  }
+  return value;
+}
+
+function bestMove(depth) {
+  const moves = validMoves(currentPlayer);
+  if (moves.length === 0) return null;
+  if (Math.random() < 0.1) {
+    return moves[Math.floor(Math.random() * moves.length)];
+  }
+  let bestScore = -Infinity;
+  let best = moves[0];
+  for (const [r, c] of moves) {
+    const nb = applyMove(board, r, c, currentPlayer);
+    const score = -minimax(nb, depth - 1, -currentPlayer, -Infinity, Infinity);
+    if (score > bestScore) {
+      bestScore = score;
+      best = [r, c];
+    }
+  }
+  return best;
+}
+
+function aiTurn() {
+  const move = bestMove(4);
+  if (!move) {
+    statusMessage = (currentPlayer === 1 ? '黒' : '白') + 'はパス';
+    currentPlayer *= -1;
+    if (validMoves(currentPlayer).length === 0) {
+      endGame();
+      draw();
+      return;
+    }
+    draw();
+  } else {
+    handleMove(move[0], move[1]);
+  }
+  if (mode === 'watch' || (mode === 'ai' && currentPlayer === -1)) {
+    setTimeout(aiTurn, 300);
+  }
+}
+
+function validMoves(player) {
+  const moves = [];
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (board[r][c] !== 0) continue;
+      if (captures(r, c, player).length > 0) {
+        moves.push([r, c]);
+      }
+    }
+  }
+  return moves;
+}
+
+function captures(r, c, player) {
+  const caps = [];
+  for (const [dr, dc] of directions) {
+    const captured = [];
+    let nr = r + dr, nc = c + dc;
+    while (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === -player) {
+      captured.push([nr, nc]);
+      nr += dr; nc += dc;
+    }
+    if (captured.length && nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === player) {
+      caps.push(...captured);
+    }
+  }
+  return caps;
+}
+
+function handleMove(r, c) {
+  if (board[r][c] !== 0) return;
+  const flips = captures(r, c, currentPlayer);
+  if (flips.length === 0) return;
+  board[r][c] = currentPlayer;
+  for (const [fr, fc] of flips) {
+    board[fr][fc] = currentPlayer;
+  }
+  currentPlayer *= -1;
+  if (validMoves(currentPlayer).length === 0) {
+    statusMessage = (currentPlayer === 1 ? '黒' : '白') + 'はパス';
+    currentPlayer *= -1;
+    if (validMoves(currentPlayer).length === 0) {
+      endGame();
+      draw();
+      return;
+    }
+  }
+  draw();
+  if (mode === 'ai' && currentPlayer === -1) {
+    setTimeout(aiTurn, 300);
+  } else if (mode === 'watch') {
+    setTimeout(aiTurn, 300);
+  }
+}
+
+function endGame() {
+  const black = board.flat().filter(v => v === 1).length;
+  const white = board.flat().filter(v => v === -1).length;
+  document.getElementById('status').textContent = `終了！ 黒: ${black} 白: ${white}`;
+  document.querySelectorAll('.cell').forEach(c => c.classList.add('disabled'));
+}
+
+function draw() {
+  const container = document.getElementById('board');
+  const moves = validMoves(currentPlayer);
+  const status = statusMessage || (currentPlayer === 1 ? '黒の番です' : '白の番です');
+  document.getElementById('status').textContent = status;
+  statusMessage = '';
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const cell = container.children[r * SIZE + c];
+      cell.innerHTML = '';
+      cell.classList.remove('disabled');
+      if (board[r][c] === 1) {
+        const disc = document.createElement('div');
+        disc.className = 'disc black';
+        cell.appendChild(disc);
+      } else if (board[r][c] === -1) {
+        const disc = document.createElement('div');
+        disc.className = 'disc white';
+        cell.appendChild(disc);
+      }
+      const move = moves.some(m => m[0] === r && m[1] === c);
+      cell.style.boxShadow = move ? '0 0 0 2px yellow inset' : 'none';
+      if (!move && board[r][c] === 0) cell.classList.add('disabled');
+    }
+  }
+}
+
+function reset() {
+  currentPlayer = 1;
+  mode = 'human';
+  statusMessage = '';
+  initBoard();
+  createBoard();
+  draw();
+}
+
+document.getElementById('reset').addEventListener('click', reset);
+document.getElementById('play-ai').addEventListener('click', () => {
+  reset();
+  mode = 'ai';
+  setTimeout(aiTurn, 300);
+});
+document.getElementById('watch-ai').addEventListener('click', () => {
+  reset();
+  mode = 'watch';
+  setTimeout(aiTurn, 300);
+});
+initBoard();
+createBoard();
+draw();
+</script>
+</body>
+</html>
