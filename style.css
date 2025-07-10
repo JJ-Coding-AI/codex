@@ -2,6 +2,9 @@ body {
   font-family: Arial, sans-serif;
   text-align: center;
 }
+#controls {
+  margin-bottom: 10px;
+}
 #game {
   display: inline-grid;
   grid-template-columns: repeat(8, 50px);
