@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Othello Game</title>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+#board {
+  display: grid;
+  grid-template-columns: repeat(8, 50px);
+  grid-template-rows: repeat(8, 50px);
+  gap: 2px;
+  margin-top: 20px;
+}
+.cell {
+  width: 50px;
+  height: 50px;
+  background-color: green;
+  border: 1px solid #000;
+  position: relative;
+  cursor: pointer;
+}
+.cell.valid {
+  background-color: #5fa55f;
+}
+.piece {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+.black {
+  background-color: black;
+}
+.white {
+  background-color: white;
+  border: 1px solid #000;
+}
+#info {
+  margin-top: 10px;
+}
+</style>
+</head>
+<body>
+<h1>Othello</h1>
+<div id="info"></div>
+<div id="board"></div>
+<button id="restart">Restart</button>
+<script>
+const boardElem = document.getElementById('board');
+const infoElem = document.getElementById('info');
+const restartBtn = document.getElementById('restart');
+
+const EMPTY = 0;
+const BLACK = 1;
+const WHITE = 2;
+let board;
+let currentPlayer;
+
+function initBoard() {
+  board = Array.from({ length: 8 }, () => Array(8).fill(EMPTY));
+  board[3][3] = WHITE;
+  board[3][4] = BLACK;
+  board[4][3] = BLACK;
+  board[4][4] = WHITE;
+  currentPlayer = BLACK;
+}
+
+function inBounds(x, y) {
+  return x >= 0 && x < 8 && y >= 0 && y < 8;
+}
+
+function getOpponent(player) {
+  return player === BLACK ? WHITE : BLACK;
+}
+
+function validMoves(player) {
+  const moves = [];
+  for (let x = 0; x < 8; x++) {
+    for (let y = 0; y < 8; y++) {
+      if (board[x][y] !== EMPTY) continue;
+      if (wouldFlip(x, y, player).length) moves.push([x, y]);
+    }
+  }
+  return moves;
+}
+
+function wouldFlip(x, y, player) {
+  const opp = getOpponent(player);
+  const dirs = [
+    [1,0], [-1,0], [0,1], [0,-1], [1,1], [1,-1], [-1,1], [-1,-1]
+  ];
+  const flips = [];
+  for (const [dx,dy] of dirs) {
+    let nx = x + dx, ny = y + dy;
+    const temp = [];
+    while (inBounds(nx, ny) && board[nx][ny] === opp) {
+      temp.push([nx, ny]);
+      nx += dx; ny += dy;
+    }
+    if (inBounds(nx, ny) && board[nx][ny] === player && temp.length) {
+      flips.push(...temp);
+    }
+  }
+  return flips;
+}
+
+function applyMove(x, y, player) {
+  const flips = wouldFlip(x, y, player);
+  if (!flips.length) return false;
+  board[x][y] = player;
+  for (const [fx, fy] of flips) {
+    board[fx][fy] = player;
+  }
+  return true;
+}
+
+function updateBoard() {
+  boardElem.innerHTML = '';
+  const moves = validMoves(currentPlayer);
+  for (let x = 0; x < 8; x++) {
+    for (let y = 0; y < 8; y++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      if (board[x][y] === BLACK) {
+        const p = document.createElement('div');
+        p.className = 'piece black';
+        cell.appendChild(p);
+      } else if (board[x][y] === WHITE) {
+        const p = document.createElement('div');
+        p.className = 'piece white';
+        cell.appendChild(p);
+      } else if (moves.some(m => m[0]===x && m[1]===y)) {
+        cell.classList.add('valid');
+      }
+      cell.addEventListener('click', () => handleClick(x, y));
+      boardElem.appendChild(cell);
+    }
+  }
+  const count = countPieces();
+  infoElem.textContent = `Turn: ${currentPlayer === BLACK ? 'Black' : 'White'} | Black: ${count.black} White: ${count.white}`;
+}
+
+function handleClick(x, y) {
+  if (!applyMove(x, y, currentPlayer)) return;
+  currentPlayer = getOpponent(currentPlayer);
+  if (!validMoves(currentPlayer).length) {
+    currentPlayer = getOpponent(currentPlayer);
+    if (!validMoves(currentPlayer).length) {
+      endGame();
+      return;
+    }
+  }
+  updateBoard();
+}
+
+function countPieces() {
+  let black = 0, white = 0;
+  for (let x = 0; x < 8; x++) {
+    for (let y = 0; y < 8; y++) {
+      if (board[x][y] === BLACK) black++;
+      else if (board[x][y] === WHITE) white++;
+    }
+  }
+  return { black, white };
+}
+
+function endGame() {
+  const count = countPieces();
+  let result = 'Draw';
+  if (count.black > count.white) result = 'Black wins!';
+  else if (count.white > count.black) result = 'White wins!';
+  alert(`${result} Final score - Black: ${count.black} White: ${count.white}`);
+}
+
+restartBtn.addEventListener('click', () => {
+  initBoard();
+  updateBoard();
+});
+
+initBoard();
+updateBoard();
+</script>
+</body>
+</html>
