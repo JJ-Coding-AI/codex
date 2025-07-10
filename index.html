@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Othello Game</title>
+<style>
+  body { font-family: sans-serif; text-align: center; }
+  #board { border-collapse: collapse; margin: 20px auto; }
+  #board td { width: 40px; height: 40px; background: green; border: 1px solid #000; position: relative; }
+  .disk { width: 80%; height: 80%; border-radius: 50%; margin: auto; }
+  .black { background: black; }
+  .white { background: white; }
+</style>
+</head>
+<body>
+<h1>Othello</h1>
+<div id="status"></div>
+<table id="board"></table>
+<button id="restart">Restart</button>
+<script>
+const boardElement = document.getElementById('board');
+let board = Array.from({length:8}, () => Array(8).fill(0));
+board[3][3] = -1;
+board[3][4] = 1;
+board[4][3] = 1;
+board[4][4] = -1;
+let currentPlayer = 1; // 1=black, -1=white
+
+document.getElementById('restart').addEventListener('click', restart);
+
+function render() {
+  boardElement.innerHTML = '';
+  for (let r=0; r<8; r++) {
+    const row = document.createElement('tr');
+    for (let c=0; c<8; c++) {
+      const cell = document.createElement('td');
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+      cell.addEventListener('click', cellClick);
+      const val = board[r][c];
+      if (val !== 0) {
+        const disk = document.createElement('div');
+        disk.className = 'disk ' + (val === 1 ? 'black' : 'white');
+        cell.appendChild(disk);
+      }
+      row.appendChild(cell);
+    }
+    boardElement.appendChild(row);
+  }
+  document.getElementById('status').textContent = currentPlayer === 1 ? 'Black turn' : 'White turn';
+}
+
+function captures(r, c, player) {
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  const flips = [];
+  for (const [dr, dc] of dirs) {
+    let i = r + dr, j = c + dc;
+    const toFlip = [];
+    while (i >= 0 && i < 8 && j >= 0 && j < 8 && board[i][j] === -player) {
+      toFlip.push([i, j]);
+      i += dr; j += dc;
+    }
+    if (i >= 0 && i < 8 && j >= 0 && j < 8 && board[i][j] === player && toFlip.length) {
+      flips.push(...toFlip);
+    }
+  }
+  return flips;
+}
+
+function validMoves(player) {
+  const moves = [];
+  for (let r=0; r<8; r++) {
+    for (let c=0; c<8; c++) {
+      if (board[r][c] === 0 && captures(r, c, player).length) {
+        moves.push([r,c]);
+      }
+    }
+  }
+  return moves;
+}
+
+function cellClick(e) {
+  const r = parseInt(e.currentTarget.dataset.r);
+  const c = parseInt(e.currentTarget.dataset.c);
+  const flips = captures(r, c, currentPlayer);
+  if (board[r][c] === 0 && flips.length) {
+    board[r][c] = currentPlayer;
+    for (const [fr, fc] of flips) {
+      board[fr][fc] = currentPlayer;
+    }
+    currentPlayer *= -1;
+    if (!validMoves(currentPlayer).length) {
+      currentPlayer *= -1;
+      if (!validMoves(currentPlayer).length) {
+        return endGame();
+      }
+    }
+    render();
+  }
+}
+
+function endGame() {
+  const black = board.flat().filter(v => v === 1).length;
+  const white = board.flat().filter(v => v === -1).length;
+  document.getElementById('status').textContent = `Game over. Black: ${black}, White: ${white}`;
+}
+
+function restart() {
+  board = Array.from({length:8}, () => Array(8).fill(0));
+  board[3][3] = -1;
+  board[3][4] = 1;
+  board[4][3] = 1;
+  board[4][4] = -1;
+  currentPlayer = 1;
+  render();
+}
+
+render();
+</script>
+</body>
+</html>
