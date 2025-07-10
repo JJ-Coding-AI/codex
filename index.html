@@ -17,6 +17,9 @@
 <div id="status"></div>
 <table id="board"></table>
 <button id="restart">Restart</button>
+<button id="humanHuman">Human vs Human</button>
+<button id="playAi">Play vs Computer</button>
+<button id="watchAi">Watch Computer vs Computer</button>
 <script>
 const boardElement = document.getElementById('board');
 let board = Array.from({length:8}, () => Array(8).fill(0));
@@ -25,8 +28,13 @@ board[3][4] = 1;
 board[4][3] = 1;
 board[4][4] = -1;
 let currentPlayer = 1; // 1=black, -1=white
+let mode = 'human'; // 'human', 'ai', 'ai-ai'
+let aiSide = -1; // side for AI when mode==='ai'
 
 document.getElementById('restart').addEventListener('click', restart);
+document.getElementById('humanHuman').addEventListener('click', () => { mode = 'human'; restart(); });
+document.getElementById('playAi').addEventListener('click', () => { mode = 'ai'; aiSide = -1; restart(); });
+document.getElementById('watchAi').addEventListener('click', () => { mode = 'ai-ai'; restart(); });
 
 function render() {
   boardElement.innerHTML = '';
@@ -79,23 +87,152 @@ function validMoves(player) {
   return moves;
 }
 
-function cellClick(e) {
-  const r = parseInt(e.currentTarget.dataset.r);
-  const c = parseInt(e.currentTarget.dataset.c);
-  const flips = captures(r, c, currentPlayer);
+function makeMove(r, c, player) {
+  const flips = captures(r, c, player);
   if (board[r][c] === 0 && flips.length) {
-    board[r][c] = currentPlayer;
+    board[r][c] = player;
     for (const [fr, fc] of flips) {
-      board[fr][fc] = currentPlayer;
+      board[fr][fc] = player;
     }
+    return true;
+  }
+  return false;
+}
+
+function nextTurn() {
+  if (!validMoves(currentPlayer).length) {
+    document.getElementById('status').textContent = (currentPlayer === 1 ? 'Black' : 'White') + ' passes.';
     currentPlayer *= -1;
     if (!validMoves(currentPlayer).length) {
-      currentPlayer *= -1;
-      if (!validMoves(currentPlayer).length) {
-        return endGame();
+      return endGame();
+    }
+  }
+  render();
+  if ((mode === 'ai' && currentPlayer === aiSide) || mode === 'ai-ai') {
+    setTimeout(aiMove, 200);
+  }
+}
+
+function aiMove() {
+  const moves = validMoves(currentPlayer);
+  if (!moves.length) return nextTurn();
+  let move;
+  if (Math.random() < 0.1) {
+    move = moves[Math.floor(Math.random() * moves.length)];
+  } else {
+    move = computeBestMove(board, currentPlayer, 3) || moves[0];
+  }
+  makeMove(move[0], move[1], currentPlayer);
+  currentPlayer *= -1;
+  nextTurn();
+}
+
+function computeBestMove(b, player, depth) {
+  const result = minimax(b, depth, player, player, -Infinity, Infinity);
+  return result[1];
+}
+
+function minimax(b, depth, player, maximizingPlayer, alpha, beta) {
+  const moves = validMovesFor(b, player);
+  if (depth === 0 || moves.length === 0) {
+    return [evaluateBoard(b, maximizingPlayer), null];
+  }
+  let bestMove = null;
+  if (player === maximizingPlayer) {
+    let value = -Infinity;
+    for (const mv of moves) {
+      const nb = cloneBoard(b);
+      applyMoveToBoard(nb, mv[0], mv[1], player);
+      const [childVal] = minimax(nb, depth-1, -player, maximizingPlayer, alpha, beta);
+      if (childVal > value) {
+        value = childVal;
+        bestMove = mv;
+      }
+      alpha = Math.max(alpha, value);
+      if (beta <= alpha) break;
+    }
+    return [value, bestMove];
+  } else {
+    let value = Infinity;
+    for (const mv of moves) {
+      const nb = cloneBoard(b);
+      applyMoveToBoard(nb, mv[0], mv[1], player);
+      const [childVal] = minimax(nb, depth-1, -player, maximizingPlayer, alpha, beta);
+      if (childVal < value) {
+        value = childVal;
+        bestMove = mv;
+      }
+      beta = Math.min(beta, value);
+      if (beta <= alpha) break;
+    }
+    return [value, bestMove];
+  }
+}
+
+function validMovesFor(b, player) {
+  const moves = [];
+  for (let r=0; r<8; r++) {
+    for (let c=0; c<8; c++) {
+      if (b[r][c] === 0 && capturesOnBoard(b, r, c, player).length) {
+        moves.push([r,c]);
       }
     }
-    render();
+  }
+  return moves;
+}
+
+function capturesOnBoard(b, r, c, player) {
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  const flips = [];
+  for (const [dr, dc] of dirs) {
+    let i = r + dr, j = c + dc;
+    const toFlip = [];
+    while (i >= 0 && i < 8 && j >= 0 && j < 8 && b[i][j] === -player) {
+      toFlip.push([i, j]);
+      i += dr; j += dc;
+    }
+    if (i >= 0 && i < 8 && j >= 0 && j < 8 && b[i][j] === player && toFlip.length) {
+      flips.push(...toFlip);
+    }
+  }
+  return flips;
+}
+
+function applyMoveToBoard(b, r, c, player) {
+  const flips = capturesOnBoard(b, r, c, player);
+  b[r][c] = player;
+  for (const [fr, fc] of flips) {
+    b[fr][fc] = player;
+  }
+}
+
+function cloneBoard(b) {
+  return b.map(row => row.slice());
+}
+
+function evaluateBoard(b, player) {
+  let score = 0;
+  const corners = [[0,0],[0,7],[7,0],[7,7]];
+  for (const [r,c] of corners) {
+    if (b[r][c] === player) score += 25;
+    else if (b[r][c] === -player) score -= 25;
+  }
+  for (const row of b) {
+    for (const cell of row) {
+      if (cell === player) score += 1;
+      else if (cell === -player) score -= 1;
+    }
+  }
+  return score;
+}
+
+function cellClick(e) {
+  if ((mode === 'ai' && currentPlayer === aiSide) || mode === 'ai-ai') return;
+  const r = parseInt(e.currentTarget.dataset.r);
+  const c = parseInt(e.currentTarget.dataset.c);
+  if (makeMove(r, c, currentPlayer)) {
+    currentPlayer *= -1;
+    nextTurn();
   }
 }
 
@@ -113,9 +250,12 @@ function restart() {
   board[4][4] = -1;
   currentPlayer = 1;
   render();
+  if ((mode === 'ai' && currentPlayer === aiSide) || mode === 'ai-ai') {
+    setTimeout(aiMove, 200);
+  }
 }
 
-render();
+restart();
 </script>
 </body>
 </html>
