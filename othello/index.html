@@ -50,6 +50,14 @@ body {
 </head>
 <body>
 <h1>Othello</h1>
+<div>
+  <label for="mode">Mode:</label>
+  <select id="mode">
+    <option value="human">Human vs Human</option>
+    <option value="human-ai">Human vs Computer</option>
+    <option value="ai-ai">Computer vs Computer</option>
+  </select>
+</div>
 <div id="info"></div>
 <div id="board"></div>
 <button id="restart">Restart</button>
@@ -57,6 +65,10 @@ body {
 const boardElem = document.getElementById('board');
 const infoElem = document.getElementById('info');
 const restartBtn = document.getElementById('restart');
+const modeSelect = document.getElementById('mode');
+
+const aiPlayers = { 1: false, 2: false };
+let message = '';
 
 const EMPTY = 0;
 const BLACK = 1;
@@ -122,6 +134,104 @@ function applyMove(x, y, player) {
   return true;
 }
 
+function cloneBoard(b) {
+  return b.map(row => row.slice());
+}
+
+function wouldFlipGeneric(b, x, y, player) {
+  const opp = getOpponent(player);
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  const flips = [];
+  for (const [dx,dy] of dirs) {
+    let nx = x + dx, ny = y + dy;
+    const temp = [];
+    while (nx>=0 && nx<8 && ny>=0 && ny<8 && b[nx][ny] === opp) {
+      temp.push([nx,ny]);
+      nx += dx; ny += dy;
+    }
+    if (nx>=0 && nx<8 && ny>=0 && ny<8 && b[nx][ny] === player && temp.length) {
+      flips.push(...temp);
+    }
+  }
+  return flips;
+}
+
+function validMovesGeneric(b, player) {
+  const moves = [];
+  for (let x=0;x<8;x++) {
+    for (let y=0;y<8;y++) {
+      if (b[x][y] !== EMPTY) continue;
+      if (wouldFlipGeneric(b,x,y,player).length) moves.push([x,y]);
+    }
+  }
+  return moves;
+}
+
+function applyMoveGeneric(b, x, y, player) {
+  const flips = wouldFlipGeneric(b,x,y,player);
+  if (!flips.length) return false;
+  b[x][y] = player;
+  for (const [fx,fy] of flips) b[fx][fy]=player;
+  return true;
+}
+
+const WEIGHTS = [
+  [100,-20,10,5,5,10,-20,100],
+  [-20,-50,-2,-2,-2,-2,-50,-20],
+  [10,-2,8,1,1,8,-2,10],
+  [5,-2,1,0,0,1,-2,5],
+  [5,-2,1,0,0,1,-2,5],
+  [10,-2,8,1,1,8,-2,10],
+  [-20,-50,-2,-2,-2,-2,-50,-20],
+  [100,-20,10,5,5,10,-20,100]
+];
+
+function evaluateBoard(b, player) {
+  const opp = getOpponent(player);
+  let score = 0;
+  for (let x=0;x<8;x++) {
+    for (let y=0;y<8;y++) {
+      if (b[x][y] === player) score += WEIGHTS[x][y];
+      else if (b[x][y] === opp) score -= WEIGHTS[x][y];
+    }
+  }
+  return score;
+}
+
+function bestScore(b, player, depth, me) {
+  if (depth === 0) return evaluateBoard(b, me);
+  const moves = validMovesGeneric(b, player);
+  if (!moves.length) return evaluateBoard(b, me);
+  let best = player === me ? -Infinity : Infinity;
+  for (const [x,y] of moves) {
+    const nb = cloneBoard(b);
+    applyMoveGeneric(nb,x,y,player);
+    const score = bestScore(nb, getOpponent(player), depth-1, me);
+    if (player === me) {
+      if (score > best) best = score;
+    } else {
+      if (score < best) best = score;
+    }
+  }
+  return best;
+}
+
+function getBestMove(player) {
+  const moves = validMoves(player);
+  let best = -Infinity;
+  let bestMove = moves[0];
+  for (const [x,y] of moves) {
+    const b = cloneBoard(board);
+    applyMoveGeneric(b,x,y,player);
+    const score = bestScore(b, getOpponent(player), 2, player);
+    if (score > best) {
+      best = score;
+      bestMove = [x,y];
+    }
+  }
+  return bestMove;
+}
+
 function updateBoard() {
   boardElem.innerHTML = '';
   const moves = validMoves(currentPlayer);
@@ -145,20 +255,48 @@ function updateBoard() {
     }
   }
   const count = countPieces();
-  infoElem.textContent = `Turn: ${currentPlayer === BLACK ? 'Black' : 'White'} | Black: ${count.black} White: ${count.white}`;
+  infoElem.textContent = `Turn: ${currentPlayer === BLACK ? 'Black' : 'White'} | Black: ${count.black} White: ${count.white} ${message}`;
+  message = "";
 }
 
 function handleClick(x, y) {
+  if (aiPlayers[currentPlayer]) return;
   if (!applyMove(x, y, currentPlayer)) return;
   currentPlayer = getOpponent(currentPlayer);
+  nextTurn();
+}
+
+function aiMove() {
+  const moves = validMoves(currentPlayer);
+  if (!moves.length) {
+    nextTurn();
+    return;
+  }
+  let move;
+  if (Math.random() < 0.1) {
+    move = moves[Math.floor(Math.random()*moves.length)];
+  } else {
+    move = getBestMove(currentPlayer);
+  }
+  applyMove(move[0], move[1], currentPlayer);
+  currentPlayer = getOpponent(currentPlayer);
+  nextTurn();
+}
+
+function nextTurn() {
   if (!validMoves(currentPlayer).length) {
+    message = 'Pass';
     currentPlayer = getOpponent(currentPlayer);
     if (!validMoves(currentPlayer).length) {
+      updateBoard();
       endGame();
       return;
     }
   }
   updateBoard();
+  if (aiPlayers[currentPlayer]) {
+    setTimeout(aiMove, 300);
+  }
 }
 
 function countPieces() {
@@ -180,13 +318,27 @@ function endGame() {
   alert(`${result} Final score - Black: ${count.black} White: ${count.white}`);
 }
 
-restartBtn.addEventListener('click', () => {
+function startGame() {
   initBoard();
-  updateBoard();
-});
+  const mode = modeSelect.value;
+  if (mode === 'human') {
+    aiPlayers[BLACK] = false;
+    aiPlayers[WHITE] = false;
+  } else if (mode === 'human-ai') {
+    aiPlayers[BLACK] = false;
+    aiPlayers[WHITE] = true;
+  } else {
+    aiPlayers[BLACK] = true;
+    aiPlayers[WHITE] = true;
+  }
+  currentPlayer = BLACK;
+  message = '';
+  nextTurn();
+}
 
-initBoard();
-updateBoard();
+restartBtn.addEventListener('click', startGame);
+
+startGame();
 </script>
 </body>
 </html>
