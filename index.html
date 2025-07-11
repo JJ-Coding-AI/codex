@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Web Othello</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<h1>Web Othello</h1>
+<div id="controls">
+<label>Black: 
+<select id="black-player">
+<option value="human">Human</option>
+<option value="ai">AI</option>
+</select>
+</label>
+<label>White: 
+<select id="white-player">
+<option value="human">Human</option>
+<option value="ai">AI</option>
+</select>
+</label>
+<button id="start">Start Game</button>
+</div>
+<div id="board"></div>
+<div id="status"></div>
+<pre id="log"></pre>
+<script src="script.js"></script>
+</body>
+</html>
