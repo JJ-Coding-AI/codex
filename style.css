@@ -1,0 +1,74 @@
+body {
+  background: #fffff0;
+  font-family: Arial, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px;
+}
+#container {
+  display: flex;
+}
+#board {
+  display: grid;
+  grid-template-columns: repeat(8, 80px);
+  grid-template-rows: repeat(8, 80px);
+  background: #006400;
+  border: 5px solid #000;
+  margin-right: 20px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.5);
+}
+.cell {
+  width: 80px;
+  height: 80px;
+  border: 1px solid #000;
+  position: relative;
+}
+.piece {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  transition: transform 0.4s;
+  backface-visibility: hidden;
+}
+.black { background: #000; }
+.white { background: #fff; }
+
+#sidebar {
+  width: 300px;
+}
+#controls {
+  margin-bottom: 20px;
+}
+#controls button {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  font-size: 16px;
+  background: #333;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px #555;
+}
+#controls button:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px #555;
+}
+#log {
+  height: 640px;
+  overflow-y: auto;
+  background: #f4f4f4;
+  border: 1px solid #ccc;
+  padding: 10px;
+}
+.flip {
+  animation: flip 0.4s forwards;
+}
+@keyframes flip {
+  from { transform: rotateY(0); }
+  to { transform: rotateY(180deg); }
+}
