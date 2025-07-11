@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>WEBオセロ</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <h1>WEBオセロ</h1>
+  <div id="game-container">
+    <div id="board"></div>
+    <div id="log-container">
+      <h2>AIログ</h2>
+      <pre id="log"></pre>
+    </div>
+  </div>
+  <div id="controls">
+    <select id="mode">
+      <option value="human">人間 vs 人間</option>
+      <option value="ai-human">AI vs 人間</option>
+      <option value="ai-ai">AI vs AI</option>
+    </select>
+    <button id="reset">リセット</button>
+  </div>
+</div>
+<script src="script.js"></script>
+</body>
+</html>
